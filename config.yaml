@@ -1,0 +1,17 @@
+credentials:
+  usernames:
+    demouser:
+      email: demouser@gmail.com
+      name: LHQ
+      password: $2b$12$S1dV4674DPKtNNsaeZp0DukzdZHtftM5p3ICPD3X2LTwphuXbeY1q # To be replaced with hashed password
+    admin:
+      email: admin@gmail.com
+      name: DXS
+      password: $2b$12$j2T8Ast8isOkgb4s8RA3m.bJbDNzKEAJnab953i84Wv8NqtediDz. # To be replaced with hashed password
+cookie:
+  expiry_days: 30
+  key: some_signature_key
+  name: some_cookie_name
+preauthorized:
+  emails:
+  - melsby@gmail.com
