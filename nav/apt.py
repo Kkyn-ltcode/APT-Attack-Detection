@@ -142,8 +142,8 @@ def display(state):
                 with chart_tab:
                     chart(df)
 
-            with st.spinner('Processing...'):
-                result = make_path_prediction(df, model_path)
+            # with st.spinner('Processing...'):
+            #     result = make_path_prediction(df, model_path)
 
 # # Function to handle custom datasets and display information
 # def custom_dataset(uploaded_file):
