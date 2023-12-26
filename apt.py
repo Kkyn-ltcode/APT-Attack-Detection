@@ -13,6 +13,8 @@ warnings.filterwarnings('ignore')
 # def extract_feature(target):
 #     feature = Feature_Extraction.generate_path(target)
 #     return feature
+def highlight_row(s):
+    return ['background-color: #ebf9ee']*len(s) if s.Label == s.Prediction else ['background-color: #ffeded']*len(s)
 
 def make_path_prediction(df, model_path):
     label = ["BENIGN", "APT"]
@@ -22,7 +24,7 @@ def make_path_prediction(df, model_path):
     df['Prediction'] = df['Prediction'].apply(lambda x: label[x])
     display_df = df.iloc[:, [0, 1, -2, -1]]
     with st.expander('Prediction Result'):
-        st.write(display_df)
+        st.dataframe(display_df.style.apply(highlight_row, axis=1))
 
 # # Function to display the results in a table using AgGrid
 # def show_tabel(state, df):
