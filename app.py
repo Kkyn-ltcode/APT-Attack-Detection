@@ -1,5 +1,5 @@
-from nav import apt
 import streamlit as st
+import apt
 
 hide_streamlit_style = """
             <style>

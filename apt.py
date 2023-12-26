@@ -1,20 +1,12 @@
 # Import necessary libraries and modules
 import streamlit as st
-# import matplotlib.pyplot as plt
-# import seaborn as sns
 import plotly.express as px
 import numpy as np
 import pandas as pd
 import json
 import random
 import joblib
-import pickle
 import warnings
-from nav import Model
-from io import StringIO
-from datetime import datetime
-from st_aggrid import AgGrid, GridUpdateMode, ColumnsAutoSizeMode
-from st_aggrid.grid_options_builder import GridOptionsBuilder
 warnings.filterwarnings('ignore')
 
 # Function to extract features from file paths
@@ -22,7 +14,6 @@ warnings.filterwarnings('ignore')
 #     feature = Feature_Extraction.generate_path(target)
 #     return feature
 
-# # Function to make predictions on file paths using a trained model
 def make_path_prediction(df, model_path):
     label = ["BENIGN", "APT"]
     model = joblib.load(model_path)
@@ -52,10 +43,11 @@ def make_path_prediction(df, model_path):
 
 def chart(df):
     feature_list = list(df.columns)
-    plot_list = ['Line', 'Scatter']
+    feature_options = []
+    plot_list = ['Line', 'Scatter', 'Bar', 'Histogram', 'HeatMaps']
     mode = st.radio(
         label='',
-        options=['Random', 'Manual'],
+        options=['Random', 'Manual', 'Automatic'],
         horizontal=True,
     )
     if mode == 'Manual':
@@ -63,7 +55,8 @@ def chart(df):
             label='Features', 
             options=feature_list, 
             max_selections=2)
-        
+        plot_type = st.selectbox(label='Plot Type', options=plot_list)
+
     elif mode == 'Random':
         feature_random = random.sample(feature_list, k=2)
         feature_options = st.multiselect(
@@ -71,8 +64,101 @@ def chart(df):
             options=feature_list, 
             default=feature_random, 
             max_selections=2)
-        # plot_type = random.sample(plot_list, k=1)
-    plot_type = st.selectbox(label='Plot Type', options=plot_list)
+        plot_type = random.sample(plot_list, k=1)[0]
+
+    elif mode == 'Automatic':
+        feature = st.selectbox(
+            label='Features', 
+            options=feature_list,
+        )
+        remaining_features = list(df.drop(columns=[feature]).columns)
+        # tab_list = {f'Feature {i * 10 + 1} -> {(i + 1) * 10}' : st.tabs(remaining_features[(i * 10):(i + 1)*10]) for i in range(int(len(remaining_features) / 10) + 1)}
+        tab_selection = st.selectbox(label='Tabs', options=[f'Feature {i * 10 + 1} -> {min((i + 1) * 10, int(len(remaining_features)))}' for i in range(int(len(remaining_features) / 10) + 1)])
+        idx = int(tab_selection.split()[1])
+        tabs = st.tabs(remaining_features[(idx - 1):idx + 9])
+        for i in range(len(tabs)):
+            with tabs[i]:
+                plot_tab = st.tabs(['Line', 'Scatter', 'Bar', 'Histogram', 'Heatmap'])
+                with plot_tab[0]:
+                    on = st.toggle('Switch axis', key=f'{i}_{plot_tab}')
+                    if not on:
+                        fig = px.line(
+                            data_frame=df, 
+                            x=feature,
+                            y=remaining_features[(idx - 1) + i]
+                        )
+                    else:
+                        fig = px.line(
+                            data_frame=df, 
+                            x=remaining_features[(idx - 1) + i],
+                            y=feature
+                        )
+                    st.plotly_chart(fig, theme="streamlit", use_container_width=True)
+
+                with plot_tab[1]:
+                    on = st.toggle('Switch axis', key=f'{i}_{plot_tab}')
+                    if not on:
+                        fig = px.scatter(
+                            data_frame=df, 
+                            x=feature,
+                            y=remaining_features[(idx - 1) + i]
+                        )
+                    else:
+                        fig = px.scatter(
+                            data_frame=df, 
+                            x=remaining_features[(idx - 1) + i],
+                            y=feature
+                        )
+                    st.plotly_chart(fig, theme="streamlit", use_container_width=True)
+
+                with plot_tab[2]:
+                    on = st.toggle('Switch axis', key=f'{i}_{plot_tab}')
+                    if not on:
+                        fig = px.bar(
+                            data_frame=df, 
+                            x=feature,
+                            y=remaining_features[(idx - 1) + i]
+                        )
+                    else:
+                        fig = px.bar(
+                            data_frame=df, 
+                            x=remaining_features[(idx - 1) + i],
+                            y=feature
+                        )
+                    st.plotly_chart(fig, theme="streamlit", use_container_width=True)
+
+                with plot_tab[3]:
+                    on = st.toggle('Switch axis', key=f'{i}_{plot_tab}')
+                    if not on:
+                        fig = px.histogram(
+                            data_frame=df, 
+                            x=feature,
+                            y=remaining_features[(idx - 1) + i]
+                        )
+                    else:
+                        fig = px.histogram(
+                            data_frame=df, 
+                            x=remaining_features[(idx - 1) + i],
+                            y=feature
+                        )
+                    st.plotly_chart(fig, theme="streamlit", use_container_width=True)
+
+                with plot_tab[4]:
+                    on = st.toggle('Switch axis', key=f'{i}_{plot_tab}')
+                    if not on:
+                        fig = px.density_heatmap(
+                            data_frame=df, 
+                            x=feature,
+                            y=remaining_features[(idx - 1) + i]
+                        )
+                    else:
+                        fig = px.density_heatmap(
+                            data_frame=df, 
+                            x=remaining_features[(idx - 1) + i],
+                            y=feature
+                        )
+                    st.plotly_chart(fig, theme="streamlit", use_container_width=True)
+
     if len(feature_options) == 2:
         on = st.toggle('Switch axis')
         if plot_type == 'Line':
@@ -99,6 +185,42 @@ def chart(df):
                     x=feature_options[1],
                     y=feature_options[0]
                 )
+        elif plot_type == 'Bar':
+            fig = px.bar(
+                data_frame=df, 
+                x=feature_options[0],
+                y=feature_options[1]
+            )
+            if on:
+                fig = px.bar(
+                    data_frame=df, 
+                    x=feature_options[1],
+                    y=feature_options[0]
+                )
+        elif plot_type == 'Histogram':
+            fig = px.histogram(
+                data_frame=df, 
+                x=feature_options[0],
+                y=feature_options[1]
+            )
+            if on:
+                fig = px.histogram(
+                    data_frame=df, 
+                    x=feature_options[1],
+                    y=feature_options[0]
+                )
+        elif plot_type == 'HeatMaps':
+            fig = px.density_heatmap(
+                data_frame=df, 
+                x=feature_options[0],
+                y=feature_options[1]
+            )
+            if on:
+                fig = px.density_heatmap(
+                    data_frame=df, 
+                    x=feature_options[1],
+                    y=feature_options[0]
+            )
         st.plotly_chart(fig, theme="streamlit", use_container_width=True)
 
     
