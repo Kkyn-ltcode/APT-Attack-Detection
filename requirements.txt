@@ -4,3 +4,4 @@ scikit-learn==1.2.2
 gensim==4.3.2
 altair==4.0
 protobuf==3.20.*
+plotly
