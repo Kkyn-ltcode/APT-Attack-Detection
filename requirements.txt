@@ -1,3 +1,5 @@
 streamlit
 scikit-learn==1.3.0
 plotly
+scapy=2.4.3
+cicflowmeter

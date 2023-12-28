@@ -1,4 +1,4 @@
-# Import necessary libraries and modules
+import subprocess
 import streamlit as st
 import plotly.express as px
 import numpy as np
@@ -7,48 +7,36 @@ import json
 import random
 import joblib
 import warnings
+from pathlib import Path
 warnings.filterwarnings('ignore')
 
-# Function to extract features from file paths
-# def extract_feature(target):
-#     feature = Feature_Extraction.generate_path(target)
-#     return feature
 def highlight_row(s):
     return ['background-color: #ebf9ee']*len(s) if s.Label == s.Prediction else ['background-color: #ffeded']*len(s)
 
-def make_path_prediction(df, model_path):
+def make_path_prediction(df, model_path, uploaded_file):
     label = ["BENIGN", "APT"]
     model = joblib.load(model_path)
-    predictions = model.predict(df.iloc[:, 8:-1])
+    if uploaded_file.name.split('.')[-1] == 'csv':
+        predictions = model.predict(df.iloc[:, 8:-1])
+    else:
+        predictions = model.predict(df.iloc[:, 8:])
     df['Prediction'] = predictions
     df['Prediction'] = df['Prediction'].apply(lambda x: label[x])
-    display_df = df.iloc[:, [0, 1, -2, -1]]
+    
     with st.expander('Prediction Result'):
-        st.dataframe(display_df.style.apply(highlight_row, axis=1))
-
-# # Function to display the results in a table using AgGrid
-# def show_tabel(state, df):
-#     gb = GridOptionsBuilder.from_dataframe(df)
-#     gb.configure_pagination(paginationAutoPageSize=True)
-#     gb.configure_columns('path', editable=True)
-#     gridOptions = gb.build()
-#     grid_response = AgGrid(
-#         df,
-#         gridOptions=gridOptions,
-#         update_mode=GridUpdateMode.SELECTION_CHANGED,
-#         fit_columns_on_grid_load=False,
-#         height=None,
-#         columns_auto_size_mode=ColumnsAutoSizeMode.FIT_CONTENTS,
-#         allow_unsafe_jscode=True,
-#         editable=True,
-#     )
+        if uploaded_file.name.split('.')[-1] == 'csv':
+            df = df.iloc[:, [0, 1, -2, -1]]
+            st.dataframe(df.style.apply(highlight_row, axis=1))
+        else:
+            df = df.iloc[:, [0, 1, -1]]
+            st.dataframe(df)
 
 def chart(df):
     feature_list = list(df.columns)
     feature_options = []
     plot_list = ['Line', 'Scatter', 'Bar', 'Histogram', 'HeatMaps']
     mode = st.radio(
-        label='',
+        label='Mode',
         options=['Random', 'Manual', 'Automatic'],
         horizontal=True,
     )
@@ -74,7 +62,6 @@ def chart(df):
             options=feature_list,
         )
         remaining_features = list(df.drop(columns=[feature]).columns)
-        # tab_list = {f'Feature {i * 10 + 1} -> {(i + 1) * 10}' : st.tabs(remaining_features[(i * 10):(i + 1)*10]) for i in range(int(len(remaining_features) / 10) + 1)}
         tab_selection = st.selectbox(label='Tabs', options=[f'Feature {i * 10 + 1} -> {min((i + 1) * 10, int(len(remaining_features)))}' for i in range(int(len(remaining_features) / 10) + 1)])
         idx = int(tab_selection.split()[1])
         tabs = st.tabs(remaining_features[(idx - 1):idx + 9])
@@ -225,49 +212,169 @@ def chart(df):
             )
         st.plotly_chart(fig, theme="streamlit", use_container_width=True)
 
-    
 
-# # Function to display the model selection and file upload interface
 def display(state):
-    # Load configuration from JSON file
     with open('config.json') as json_file:
         file = json.load(json_file)
 
-    # Extract default and custom model lists
     default_list = list(file['model']['File Path']['default'].keys())
     custom_list = list(file['model']['File Path']['custom'].keys())
     model_list = default_list + custom_list
 
-    # Select the model to use
     selected_model = st.selectbox(
         'Select model', model_list)
     state.selected_model = selected_model
 
-    # Determine the model path based on the selected model
     if selected_model in default_list:
         model_path = file['model']['File Path']['default'][selected_model]['value']
     elif selected_model in custom_list:
         model_path = file['model']['File Path']['custom'][selected_model]['value']
     state.model_path = model_path
 
-    # Create a container for the user interface
     with st.container():
         with st.expander('File Upload'):
-            # Allow users to upload a file
-            uploaded_file = st.file_uploader("Choose a file", type="csv")
+            uploaded_file = st.file_uploader("Choose a file", type=["csv", 'pcap'])
         if uploaded_file is not None:
-            # Process the uploaded file and display results
-            df = pd.read_csv(uploaded_file)
+            if uploaded_file.name.split('.')[-1] == 'csv':
+                df = pd.read_csv(uploaded_file)
+
+            else:
+                save_folder = 'UploadedFile'
+                save_path = Path(save_folder, uploaded_file.name)
+                csv_path = Path(save_folder, f"{uploaded_file.name.split('.')[0]}.csv")
+                if not save_path.exists():
+                    with open(save_path, mode='wb') as w:
+                        w.write(uploaded_file.getvalue())
+                    command = f"cicflowmeter -f {save_path} -c {csv_path}"
+
+                    result = subprocess.run(command, shell=True, capture_output=True, text=True)
+
+                if csv_path.exists():
+                    df = pd.read_csv(csv_path)
+                    df.insert(0, 'publicIP', value=df['dst_ip'].values)
+                    df.insert(1, 'flowID', value=0)
+                    df['flowID'] = df.apply(lambda x: f"{x['src_ip']}-{x['publicIP']}-{x['src_port']}-{x['dst_port']}-{x['protocol']}", axis=1)
+                    new_column_names = {
+                        'src_ip': 'SrcIP',
+                        'dst_ip': 'DstIP',
+                        'src_port': 'SrcPort',
+                        'dst_port': 'DstPort',
+                        'protocol': 'Protocol',
+                        'timestamp': 'Timestamp',
+                        'flow_duration': 'FlowDuration',
+                        'flow_byts_s': 'FlowByts/s',
+                        'flow_pkts_s': 'FlowPkts/s',
+                        'fwd_pkts_s': 'FwdPkts/s',
+                        'bwd_pkts_s': 'BwdPkts/s',
+                        'tot_fwd_pkts': 'TotFwdPkts',
+                        'tot_bwd_pkts': 'TotBwdPkts',
+                        'totlen_fwd_pkts': 'TotLenFwdPkts',
+                        'totlen_bwd_pkts': 'TotLenBwdPkts',
+                        'fwd_pkt_len_max': 'FwdPktLenMax',
+                        'fwd_pkt_len_min': 'FwdPktLenMin',
+                        'fwd_pkt_len_mean': 'FwdPktLenMean',
+                        'fwd_pkt_len_std': 'FwdPktLenStd',
+                        'bwd_pkt_len_max': 'BwdPktLenMax',
+                        'bwd_pkt_len_min': 'BwdPktLenMin',
+                        'bwd_pkt_len_mean': 'BwdPktLenMean',
+                        'bwd_pkt_len_std': 'BwdPktLenStd',
+                        'pkt_len_max': 'PktLenMax',
+                        'pkt_len_min': 'PktLenMin',
+                        'pkt_len_mean': 'PktLenMean',
+                        'pkt_len_std': 'PktLenStd',
+                        'pkt_len_var': 'PktLenVar',
+                        'fwd_header_len': 'FwdHeaderLen',
+                        'bwd_header_len': 'BwdHeaderLen',
+                        'fwd_seg_size_min': 'FwdSegSizeMin',
+                        'fwd_act_data_pkts': 'FwdActDataPkts',
+                        'flow_iat_mean': 'FlowIATMean',
+                        'flow_iat_max': 'FlowIATMax',
+                        'flow_iat_min': 'FlowIATMin',
+                        'flow_iat_std': 'FlowIATStd',
+                        'fwd_iat_tot': 'FwdIATTot',
+                        'fwd_iat_max': 'FwdIATMax',
+                        'fwd_iat_min': 'FwdIATMin',
+                        'fwd_iat_mean': 'FwdIATMean',
+                        'fwd_iat_std': 'FwdIATStd',
+                        'bwd_iat_tot': 'BwdIATTot',
+                        'bwd_iat_max': 'BwdIATMax',
+                        'bwd_iat_min': 'BwdIATMin',
+                        'bwd_iat_mean': 'BwdIATMean',
+                        'bwd_iat_std': 'BwdIATStd',
+                        'fwd_psh_flags': 'FwdPSHFlags',
+                        'bwd_psh_flags': 'BwdPSHFlags',
+                        'fwd_urg_flags': 'FwdURGFlags',
+                        'bwd_urg_flags': 'BwdURGFlags',
+                        'fin_flag_cnt': 'FINFlagCnt',
+                        'syn_flag_cnt': 'SYNFlagCnt',
+                        'rst_flag_cnt': 'RSTFlagCnt',
+                        'psh_flag_cnt': 'PSHFlagCnt',
+                        'ack_flag_cnt': 'ACKFlagCnt',
+                        'urg_flag_cnt': 'URGFlagCnt',
+                        'ece_flag_cnt': 'ECEFlagCnt',
+                        'down_up_ratio': 'Down/UpRatio',
+                        'pkt_size_avg': 'PktSizeAvg',
+                        'init_fwd_win_byts': 'InitFwdWinByts',
+                        'init_bwd_win_byts': 'InitBwdWinByts',
+                        'active_max': 'ActiveMax',
+                        'active_min': 'ActiveMin',
+                        'active_mean': 'ActiveMean',
+                        'active_std': 'ActiveStd',
+                        'idle_max': 'IdleMax',
+                        'idle_min': 'IdleMin',
+                        'idle_mean': 'IdleMean',
+                        'idle_std': 'IdleStd',
+                        'fwd_byts_b_avg': 'FwdByts/bAvg',
+                        'fwd_pkts_b_avg': 'FwdPkts/bAvg',
+                        'bwd_byts_b_avg': 'BwdByts/bAvg',
+                        'bwd_pkts_b_avg': 'BwdPkts/bAvg',
+                        'fwd_blk_rate_avg': 'FwdBlkRateAvg',
+                        'bwd_blk_rate_avg': 'BwdBlkRateAvg',
+                        'fwd_seg_size_avg': 'FwdSegSizeAvg',
+                        'bwd_seg_size_avg': 'BwdSegSizeAvg',
+                        'cwe_flag_count': 'CWEFlagCount',
+                        'subflow_fwd_pkts': 'SubflowFwdPkts',
+                        'subflow_bwd_pkts': 'SubflowBwdPkts',
+                        'subflow_fwd_byts': 'SubflowFwdByts',
+                        'subflow_bwd_byts': 'SubflowBwdByts',
+                        'publicIP': 'publicIP',
+                        'flowID': 'FlowID'
+                    }
+                    df.rename(columns=new_column_names, inplace=True)
+                    order = ['publicIP', 'FlowID', 'SrcIP', 'SrcPort', 'DstIP', 'DstPort',
+                            'Protocol', 'Timestamp', 'FlowDuration', 'TotFwdPkts', 'TotBwdPkts',
+                            'TotLenFwdPkts', 'TotLenBwdPkts', 'FwdPktLenMax', 'FwdPktLenMin',
+                            'FwdPktLenMean', 'FwdPktLenStd', 'BwdPktLenMax', 'BwdPktLenMin',
+                            'BwdPktLenMean', 'BwdPktLenStd', 'FlowByts/s', 'FlowPkts/s',
+                            'FlowIATMean', 'FlowIATStd', 'FlowIATMax', 'FlowIATMin', 'FwdIATTot',
+                            'FwdIATMean', 'FwdIATStd', 'FwdIATMax', 'FwdIATMin', 'BwdIATTot',
+                            'BwdIATMean', 'BwdIATStd', 'BwdIATMax', 'BwdIATMin', 'FwdPSHFlags',
+                            'BwdPSHFlags', 'FwdURGFlags', 'BwdURGFlags', 'FwdHeaderLen',
+                            'BwdHeaderLen', 'FwdPkts/s', 'BwdPkts/s', 'PktLenMin', 'PktLenMax',
+                            'PktLenMean', 'PktLenStd', 'PktLenVar', 'FINFlagCnt', 'SYNFlagCnt',
+                            'RSTFlagCnt', 'PSHFlagCnt', 'ACKFlagCnt', 'URGFlagCnt', 'CWEFlagCount',
+                            'ECEFlagCnt', 'Down/UpRatio', 'PktSizeAvg', 'FwdSegSizeAvg',
+                            'BwdSegSizeAvg', 'FwdByts/bAvg', 'FwdPkts/bAvg', 'FwdBlkRateAvg',
+                            'BwdByts/bAvg', 'BwdPkts/bAvg', 'BwdBlkRateAvg', 'SubflowFwdPkts',
+                            'SubflowFwdByts', 'SubflowBwdPkts', 'SubflowBwdByts', 'InitFwdWinByts',
+                            'InitBwdWinByts', 'FwdActDataPkts', 'FwdSegSizeMin', 'ActiveMean',
+                            'ActiveStd', 'ActiveMax', 'ActiveMin', 'IdleMean', 'IdleStd', 'IdleMax',
+                            'IdleMin']
+                    df = df[order]
+                else:
+                    st.write("Can't read file")
 
             with st.expander('Data Overview'):
-                data_tab, chart_tab = st.tabs(['Data', 'Chart'])
-                with data_tab:
-                    st.write(df)
-                with chart_tab:
-                    chart(df)
+                    data_tab, chart_tab = st.tabs(['Data', 'Chart'])
+                    with data_tab:
+                        st.write(df)
+                    with chart_tab:
+                        chart(df)
 
             with st.spinner('Processing...'):
-                result = make_path_prediction(df, model_path)
+                result = make_path_prediction(df, model_path, uploaded_file)
+
+                
 
 # # Function to handle custom datasets and display information
 # def custom_dataset(uploaded_file):
