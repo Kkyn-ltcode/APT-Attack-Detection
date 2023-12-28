@@ -68,7 +68,7 @@ def chart(df):
         for i in range(len(tabs)):
             with tabs[i]:
                 plot_tab = st.tabs(['Scatter', 'Bar', 'Histogram', 'Heatmap', 'Line'])
-                with plot_tab[0]:
+                with plot_tab[4]:
                     on = st.toggle('Switch axis', key=f'{i}_{plot_tab}')
                     if not on:
                         fig = px.line(
@@ -78,6 +78,22 @@ def chart(df):
                         )
                     else:
                         fig = px.line(
+                            data_frame=df, 
+                            x=remaining_features[(idx - 1) + i],
+                            y=feature
+                        )
+                    st.plotly_chart(fig, theme="streamlit", use_container_width=True)
+
+                with plot_tab[0]:
+                    on = st.toggle('Switch axis', key=f'{i}_{plot_tab}')
+                    if not on:
+                        fig = px.scatter(
+                            data_frame=df, 
+                            x=feature,
+                            y=remaining_features[(idx - 1) + i]
+                        )
+                    else:
+                        fig = px.scatter(
                             data_frame=df, 
                             x=remaining_features[(idx - 1) + i],
                             y=feature
@@ -87,13 +103,13 @@ def chart(df):
                 with plot_tab[1]:
                     on = st.toggle('Switch axis', key=f'{i}_{plot_tab}')
                     if not on:
-                        fig = px.scatter(
+                        fig = px.bar(
                             data_frame=df, 
                             x=feature,
                             y=remaining_features[(idx - 1) + i]
                         )
                     else:
-                        fig = px.scatter(
+                        fig = px.bar(
                             data_frame=df, 
                             x=remaining_features[(idx - 1) + i],
                             y=feature
@@ -103,13 +119,13 @@ def chart(df):
                 with plot_tab[2]:
                     on = st.toggle('Switch axis', key=f'{i}_{plot_tab}')
                     if not on:
-                        fig = px.bar(
+                        fig = px.histogram(
                             data_frame=df, 
                             x=feature,
                             y=remaining_features[(idx - 1) + i]
                         )
                     else:
-                        fig = px.bar(
+                        fig = px.histogram(
                             data_frame=df, 
                             x=remaining_features[(idx - 1) + i],
                             y=feature
@@ -117,22 +133,6 @@ def chart(df):
                     st.plotly_chart(fig, theme="streamlit", use_container_width=True)
 
                 with plot_tab[3]:
-                    on = st.toggle('Switch axis', key=f'{i}_{plot_tab}')
-                    if not on:
-                        fig = px.histogram(
-                            data_frame=df, 
-                            x=feature,
-                            y=remaining_features[(idx - 1) + i]
-                        )
-                    else:
-                        fig = px.histogram(
-                            data_frame=df, 
-                            x=remaining_features[(idx - 1) + i],
-                            y=feature
-                        )
-                    st.plotly_chart(fig, theme="streamlit", use_container_width=True)
-
-                with plot_tab[4]:
                     on = st.toggle('Switch axis', key=f'{i}_{plot_tab}')
                     if not on:
                         fig = px.density_heatmap(
