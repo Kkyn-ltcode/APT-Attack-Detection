@@ -67,7 +67,7 @@ def chart(df):
         tabs = st.tabs(remaining_features[(idx - 1):idx + 9])
         for i in range(len(tabs)):
             with tabs[i]:
-                plot_tab = st.tabs(['Line', 'Scatter', 'Bar', 'Histogram', 'Heatmap'])
+                plot_tab = st.tabs(['Scatter', 'Bar', 'Histogram', 'Heatmap', 'Line'])
                 with plot_tab[0]:
                     on = st.toggle('Switch axis', key=f'{i}_{plot_tab}')
                     if not on:
