@@ -1,9 +1,9 @@
 {
     "model config": {
-        "random forest": {
-            "name": "rf",
+        "MLP": {
+            "name": "MLP",
             "config": {
-                "n_estimators": 60,
+                "hidden_layer": 3,
                 "max_depth": 34,
                 "min_samples_split": 2,
                 "min_samples_leaf": 10,
@@ -35,13 +35,13 @@
         "File Path": {
             "default": {
                 "Multilayer Perceptron Network": {
-                    "value": "model/RF.model"
+                    "value": "model/MLP.model"
                 },
                 "Convolutional Neural Network": {
-                    "value": "model/RF.model"
+                    "value": "model/CNN.model"
                 },
                 "Long Short Term Memory": {
-                    "value": "model/RF.model"
+                    "value": "model/LSTM.model"
                 }
             },
             "custom": {}

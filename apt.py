@@ -1,12 +1,13 @@
 import subprocess
 import streamlit as st
 import plotly.express as px
-import numpy as np
 import pandas as pd
 import json
+import os
 import random
 import joblib
 import warnings
+from datetime import datetime
 from pathlib import Path
 warnings.filterwarnings('ignore')
 
@@ -14,22 +15,36 @@ def highlight_row(s):
     return ['background-color: #ebf9ee']*len(s) if s.Label == s.Prediction else ['background-color: #ffeded']*len(s)
 
 def make_path_prediction(df, model_path, uploaded_file):
-    label = ["BENIGN", "APT"]
+    label = ["NORMAL", "APT"]
     model = joblib.load(model_path)
     if uploaded_file.name.split('.')[-1] == 'csv':
         predictions = model.predict(df.iloc[:, 8:-1])
     else:
         predictions = model.predict(df.iloc[:, 8:])
+        df['Label'] = 'NORMAL'
+
     df['Prediction'] = predictions
-    df['Prediction'] = df['Prediction'].apply(lambda x: label[x])
-    
+    df['Label'] = df['Label'].apply(lambda x: 0 if x == label[0] else 1)
+    ip_df = df.groupby('publicIP').agg({'Label': ['count', 'sum'], 'Prediction': 'sum'})
+    ip_df.columns = ['{}_{}'.format(col[0], col[1]) if col[1] != '' else col[0] for col in ip_df.columns]
+    ip_df['Label'] = ip_df.apply(lambda x: label[1] if x['Label_sum'] > int(x['Label_count'] * 0.2) else label[0], axis=1)
+    ip_df['Prediction'] = ip_df.apply(lambda x: label[1] if x['Prediction_sum'] > int(x['Label_count'] * 0.2) else label[0], axis=1)
+    ip_df.drop(columns=['Label_count', 'Prediction_sum', 'Label_sum'], inplace=True)
+    ip_df = ip_df.reset_index(drop=False)
+
     with st.expander('Prediction Result'):
-        if uploaded_file.name.split('.')[-1] == 'csv':
-            df = df.iloc[:, [0, 1, -2, -1]]
-            st.dataframe(df.style.apply(highlight_row, axis=1))
-        else:
-            df = df.iloc[:, [0, 1, -1]]
-            st.dataframe(df)
+        flow_tab, ip_tab= st.tabs(['FLows', 'IPs'])
+        with flow_tab:
+            df['Prediction'] = df['Prediction'].apply(lambda x: label[x])
+            df['Label'] = df['Label'].apply(lambda x: label[x])
+            if uploaded_file.name.split('.')[-1] == 'csv':
+                df = df.iloc[:, [0, 1, -2, -1]]
+                st.dataframe(df.style.apply(highlight_row, axis=1), width=3000)
+            else:
+                df = df.iloc[:, [0, 1, -2, -1]]
+                st.dataframe(df.style.apply(highlight_row, axis=1), width=3000)
+        with ip_tab:
+            st.dataframe(ip_df.style.apply(highlight_row, axis=1), width=3000)
 
 def chart(df):
     feature_list = list(df.columns)
@@ -230,18 +245,30 @@ def display(state):
     elif selected_model in custom_list:
         model_path = file['model']['File Path']['custom'][selected_model]['value']
     state.model_path = model_path
-
+    
+    
     with st.container():
-        with st.expander('File Upload'):
-            uploaded_file = st.file_uploader("Choose a file", type=["csv", 'pcap'])
+        uploaded_file = st.file_uploader("Choose a file", type=["csv", 'pcap'])
         if uploaded_file is not None:
             if uploaded_file.name.split('.')[-1] == 'csv':
                 df = pd.read_csv(uploaded_file)
-
             else:
+                uploaded_file_name = '-'.join(str(datetime.now()).split())
                 save_folder = 'UploadedFile'
-                save_path = Path(save_folder, uploaded_file.name)
-                csv_path = Path(save_folder, f"{uploaded_file.name.split('.')[0]}.csv")
+                
+                if os.path.exists(save_folder):
+                    files = os.listdir(save_folder)
+                    if len(files) > 10:
+                        for file in files:
+                            file_path = os.path.join(save_folder, file)
+                            try:
+                                if os.path.isfile(file_path):
+                                    os.remove(file_path)
+                            except Exception as e:
+                                print(f"Error deleting {file_path}: {e}")
+
+                save_path = Path(save_folder, f"{uploaded_file_name}.pcap")
+                csv_path = Path(save_folder, f"{uploaded_file_name}.csv")
                 if not save_path.exists():
                     with open(save_path, mode='wb') as w:
                         w.write(uploaded_file.getvalue())
@@ -365,118 +392,16 @@ def display(state):
                     st.write("Can't read file")
 
             with st.expander('Data Overview'):
-                    data_tab, chart_tab = st.tabs(['Data', 'Chart'])
-                    with data_tab:
-                        st.write(df)
-                    with chart_tab:
-                        chart(df)
-
+                data_tab, chart_tab = st.tabs(['Data', 'Chart'])
+                with data_tab:
+                    st.write(df)
+                with chart_tab:
+                    chart(df)
             with st.spinner('Processing...'):
                 result = make_path_prediction(df, model_path, uploaded_file)
 
-                
+    # st.link_button("Using Suricata", "http://203.162.10.102/analyzepcap/")
 
-# # Function to handle custom datasets and display information
-# def custom_dataset(uploaded_file):
-#     # Read a CSV file and extract file paths
-#     file_extension = uploaded_file.name.split('.')[1]
-#     if file_extension == 'csv':
-#         data = pd.read_csv(uploaded_file)
-#         path_list = data.iloc[:, 0].values.tolist()
-
-#         # Extract features from file paths
-#         # with st.spinner('Extracting...'):
-#         #     feature_list = extract_feature(path_list)
-
-#         # Create a DataFrame with features and labels
-#         # vect_df = pd.DataFrame(np.stack(feature_list))
-#         # vect_df['Label'] = data.iloc[:, 1]
-#         # vect_df.to_csv(
-#             # 'Dataset/File Path/custom_training.csv', index=False)
-
-#         return data
-
-# Function to handle custom model training and display options
-# def custom_model(state):
-#     # Select the type of machine learning model
-#     model_type = st.selectbox(label='Model Type', options=[
-#         'Random Forest', 'Decision Tree'])
-
-#     # Select the dataset to use for training
-#     dataset = st.selectbox(label='Dataset', options=[
-#         'Default Dataset', 'Custom Dataset'])
-
-#     # Handle custom datasets
-#     if dataset == 'Custom Dataset':
-#         uploaded_file = st.file_uploader("Upload a dataset", type=['csv'])
-#         if uploaded_file is not None:
-#             data, vect_df = custom_dataset(uploaded_file)
-
-#             # Display the first 5 rows of the dataset
-#             st.write("The first 5 rows of data")
-#             AgGrid(data.head(5))
-
-#             # Display the feature DataFrame for the first 5 rows
-#             st.write("Feature DataFrame for the first 5 rows")
-#             vect_cols = [f'd_{i}' for i in range(len(vect_df.columns) - 1)]
-#             vect_cols.append('Label')
-#             vect_df.columns = vect_cols
-#             AgGrid(vect_df.head())
-#         else:
-#             st.warning('You need to upload a csv file.')
-
-#     # Set options for model training
-#     options = {
-#         'type': 'file_path'
-#     }
-#     options['dataset'] = 'default' if dataset == 'Default Dataset' else 'custom'
-#     with st.form(key='custom'):
-#         with open('config.json') as json_file:
-#             file = json.load(json_file)
-
-#         # Configure options based on the selected model type
-#         if model_type == 'Random Forest':
-#             options['model'] = 'rf'
-#             params = file['model config']['random forest']['config']
-#             custom_params = {}
-#             custom_params['n_estimators'] = st.slider(label='n_estimators', value=params['n_estimators'],
-#                                                       min_value=1, max_value=1000, step=1)
-#             # ... (similar configuration for other parameters)
-#             options['config'] = custom_params
-#         elif model_type == 'Decision Tree':
-#             options['model'] = 'dt'
-#             params = file['model config']['decision tree']['config']
-#             custom_params = {}
-#             custom_params['max_depth'] = st.slider(label='max_depth', value=params['max_depth'],
-#                                                    min_value=1, max_value=100, step=1)
-#             # ... (similar configuration for other parameters)
-#             options['config'] = custom_params
-
-#         # Get model labels and configure additional options
-#         labels = list(file['model']['URL']['custom'].keys()) + \
-#             list(file['model']['URL']['default'].keys())
-#         model_name = st.text_input(label='Model Name')
-#         save_model = st.radio('Save Model?', ('Yes', 'No'), horizontal=True)
-#         options['save'] = 1 if save_model == 'Yes' else 0
-#         show_results = st.radio(
-#             'Show Results?', ('Yes', 'No'), horizontal=True)
-#         options['mode'] = 'testing' if show_results == 'Yes' else 'training'
-#         submitted = st.form_submit_button("Training")
-#         if submitted:
-#             # Validate model name and initiate training
-#             if model_name == '':
-#                 st.warning('You must assign a name!')
-#             elif model_name in labels:
-#                 st.warning('Name already exists!')
-#             else:
-#                 options['name'] = model_name
-#                 with st.spinner('Processing...'):
-#                     Model.train_model(options)
-#                 st.success('Done!')
-
-# Function to write the main content of the Streamlit app
 def write(state):
-    st.write("# APT Attack Detection")
+    # st.write("# APT Attack Detection")
     display(state)
-
-# Entry point for the Streamlit app
