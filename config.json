@@ -1,50 +1,44 @@
 {
-    "model config": {
-        "MLP": {
-            "name": "MLP",
-            "config": {
-                "hidden_layer": 3,
-                "max_depth": 34,
-                "min_samples_split": 2,
-                "min_samples_leaf": 10,
-                "max_features": 0.65
-            }
-        },
-        "decision tree": {
-            "name": "dt",
-            "config": {
-                "max_depth": 6,
-                "min_samples_split": 3,
-                "min_samples_leaf": 2,
-                "max_features": 0.5
-            }
-        },
-        "xgboost": {
-            "name": "xgb",
-            "config": {
-                "n_estimators": 1000,
-                "max_depth": 26,
-                "learning_rate": 0.01,
-                "min_child_weight": 4,
-                "subsample": 0.95,
-                "colsample_bytree": 0.8
-            }
-        }
+  "model config": {
+    "MLP": {
+      "name": "MLP",
+      "config": {
+        "hidden_layer": 3,
+        "max_depth": 34,
+        "min_samples_split": 2,
+        "min_samples_leaf": 10,
+        "max_features": 0.65
+      }
     },
-    "model": {
-        "File Path": {
-            "default": {
-                "Multilayer Perceptron Network": {
-                    "value": "model/MLP.model"
-                },
-                "Convolutional Neural Network": {
-                    "value": "model/CNN.model"
-                },
-                "Long Short Term Memory": {
-                    "value": "model/LSTM.model"
-                }
-            },
-            "custom": {}
-        }
+    "decision tree": {
+      "name": "dt",
+      "config": {
+        "max_depth": 6,
+        "min_samples_split": 3,
+        "min_samples_leaf": 2,
+        "max_features": 0.5
+      }
+    },
+    "xgboost": {
+      "name": "xgb",
+      "config": {
+        "n_estimators": 1000,
+        "max_depth": 26,
+        "learning_rate": 0.01,
+        "min_child_weight": 4,
+        "subsample": 0.95,
+        "colsample_bytree": 0.8
+      }
     }
+  },
+  "model": {
+    "File Path": {
+      "default": {
+        "Multilayer Perceptron Network": { "value": "model/MLP.model" },
+        "Convolutional Neural Network": { "value": "model/CNN.model" },
+        "Long Short Term Memory": { "value": "model/LSTM.model" }
+      },
+      "custom": {}
+    }
+  }
 }

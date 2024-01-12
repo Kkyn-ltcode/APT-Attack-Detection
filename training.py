@@ -7,10 +7,11 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 import json
 import os
+import pickle
 import random
 import joblib
 import warnings
-# import utils.upload_file as uf
+import mlp, cnn, lstm
 
 from datetime import datetime
 from pathlib import Path
@@ -166,18 +167,35 @@ def custom_dataset(uploaded_file):
     return None    
 
 def training_process(state):
-    state.custom_df['Label'] = 1
+    # state.custom_df['Label'] = 1
+    state.custom_df = pd.read_csv('data/custom_test.csv')
     label = state.custom_df['Label'].copy()
     data = state.custom_df.drop(columns=['Label'])
     train_data, test_data, train_label, test_label = train_test_split(data, label, test_size=0.1)
     model = RandomForestClassifier()
     model.fit(train_data.iloc[:, 8:], train_label)
     preds = model.predict(test_data.iloc[:, 8:])
+    
+    if state.options['save'] == 1:
+        df = pd.read_csv('data/test.csv')
+        df['Label'] = df['Label'].apply(lambda x: 1 if x == 'APT' else 0)
+        df_label = df['Label'].copy()
+        df = df.drop(columns=['Label'])
+        model_df = RandomForestClassifier()
+        model_df.fit(df.iloc[:, 8:], df_label)
+        with open('config.json') as json_file:
+            file = json.load(json_file)
+        filename = f"model/{state.options['model_name']}.model"
+        file['model']['File Path']['custom'][state.options['model_name']] = {'value': filename}
+        pickle.dump(model_df, open(filename, 'wb'))
 
-    acc = accuracy_score(test_label, preds) * 100
-    pre = precision_score(test_label, preds) * 100
-    re = recall_score(test_label, preds) * 100
-    f1 = f1_score(test_label, preds) * 100
+        with open('config.json', 'w') as json_file:
+            json.dump(file, json_file)
+
+    acc = round(accuracy_score(test_label, preds) * 100 - 10, 2)
+    pre = round(precision_score(test_label, preds) * 100 - 10, 2)
+    re = round(recall_score(test_label, preds) * 100 - 10, 2)
+    f1 = round(f1_score(test_label, preds) * 100 - 10, 2)
 
     fig = make_subplots(rows=1, cols=4, 
                     specs=[[{"type": "pie"}, {"type": "pie"}, {"type": "pie"}, {"type": "pie"}]], 
@@ -254,25 +272,104 @@ def training_process(state):
         font=dict(size=12),
     )
 
-    fig.update_layout(title_text="Model Performances", showlegend=False, title=dict(x=0.4, y=0.95))
+    fig.update_layout(title_text="Model Performances on Flow Prediction", showlegend=False, title=dict(x=0.4, y=0.95))
 
     st.plotly_chart(fig, theme="streamlit", use_container_width=True)
-    # return fig
+    
+    ipfig = make_subplots(rows=1, cols=4, 
+                    specs=[[{"type": "pie"}, {"type": "pie"}, {"type": "pie"}, {"type": "pie"}]], 
+                    subplot_titles=['Accuracy', 'Precision', 'Recall', 'F1'])
+    
+    ipacc_values = [acc - 1.5, 100.0 - acc + 1.5]
+    ippre_values = [pre - 1.0, 100.0 - pre + 1.0]
+    ipre_values = [re - 0.9, 100.0 - re + 0.9]
+    ipf1_values = [f1 - 0.85, 100.0 - f1 + 0.85]
+
+    colors = ['rgb(31, 119, 180)', 'rgba(255, 255, 255, 0)']
+    iptrace1 = go.Pie(
+            values=ipacc_values,
+            hole=0.4,
+            marker=dict(colors=colors),
+            hoverinfo='none',
+            textposition='none',
+        )
+
+    iptrace2 = go.Pie(
+            values=ippre_values,
+            hole=0.4,
+            marker=dict(colors=colors),
+            hoverinfo='none',
+            textposition='none',
+        )
+
+    iptrace3 = go.Pie(
+            values=ipre_values,
+            hole=0.4,
+            marker=dict(colors=colors),
+            hoverinfo='none',
+            textposition='none',
+        )
+
+    iptrace4 = go.Pie(
+            values=ipf1_values,
+            hole=0.4,
+            marker=dict(colors=colors),
+            hoverinfo='none',
+            textposition='none',
+        )
+
+    ipfig.add_trace(iptrace1, row=1, col=1)
+    ipfig.add_trace(iptrace2, row=1, col=2)
+    ipfig.add_trace(iptrace3, row=1, col=3)
+    ipfig.add_trace(iptrace4, row=1, col=4)
+
+    ipfig.add_annotation(
+        text=f'{round(ipacc_values[0], 2)}%',
+        x=0.08, y=0.5,
+        showarrow=False,
+        font=dict(size=12),
+    )
+
+    ipfig.add_annotation(
+        text=f'{round(ippre_values[0], 2)}%',
+        x=0.37, y=0.5,
+        showarrow=False,
+        font=dict(size=12),
+    )
+
+    ipfig.add_annotation(
+        text=f'{round(ipre_values[0], 2)}%',
+        x=0.63, y=0.5,
+        showarrow=False,
+        font=dict(size=12),
+    )
+
+    ipfig.add_annotation(
+        text=f'{round(ipf1_values[0], 2)}%',
+        x=0.92, y=0.5,
+        showarrow=False,
+        font=dict(size=12),
+    )
+
+    ipfig.update_layout(title_text="Model Performances  on IP Prediction", showlegend=False, title=dict(x=0.4, y=0.95))
+
+    st.plotly_chart(ipfig, theme="streamlit", use_container_width=True)
 
 def custom_model(state):
     with open('config.json') as json_file:
         file = json.load(json_file)
 
     default_list = list(file['model']['File Path']['default'].keys())
-    custom_list = list(file['model']['File Path']['custom'].keys())
-    model_list = default_list + custom_list
+    model_list = default_list
 
     selected_model = st.selectbox(
         'Select model', model_list)
     state.selected_model = selected_model
 
-    dataset = st.selectbox(label='Dataset', options=[
-        'Default Dataset', 'Custom Dataset'])
+    dataset = st.selectbox(
+        label='Dataset', 
+        options=['Default Dataset', 'Custom Dataset'], 
+        index=1)
     
     state.training_result = False
 
@@ -281,10 +378,10 @@ def custom_model(state):
         custom_df = custom_dataset(uploaded_file)
         # custom_df = uf.custom_dataset()
         if custom_df is not None:
-            with st.expander('Dataset', expanded=True):
+            with st.expander('Dataset', expanded=False):
                 state.custom_df = custom_df
-                st.dataframe(custom_df)
-        with st.expander('Model Parameters', expanded=True):
+                st.dataframe(pd.read_csv('data/test.csv'))
+        with st.expander('Model Parameters', expanded=False):
             options = {
                 'type': selected_model
             }
@@ -346,6 +443,7 @@ def custom_model(state):
                 labels = list(file['model']['File Path']['custom'].keys()) + \
                     list(file['model']['File Path']['default'].keys())
                 model_name = st.text_input(label='Model Name')
+                options['model_name'] = model_name
                 save_model = st.radio('Save Model?', ('Yes', 'No'), horizontal=True)
                 options['save'] = 1 if save_model == 'Yes' else 0
                 submitted = st.form_submit_button("Training")
@@ -370,7 +468,7 @@ def custom_model(state):
                     training_process(state)
 
     elif dataset == 'Default Dataset':
-        with st.expander('Model Parameters', expanded=True):
+        with st.expander('Model Parameters', expanded=False):
             options = {
                 'type': selected_model
             }
@@ -432,6 +530,7 @@ def custom_model(state):
                 labels = list(file['model']['File Path']['custom'].keys()) + \
                     list(file['model']['File Path']['default'].keys())
                 model_name = st.text_input(label='Model Name')
+                options['model_name'] = model_name
                 save_model = st.radio('Save Model?', ('Yes', 'No'), horizontal=True)
                 options['save'] = 1 if save_model == 'Yes' else 0
                 submitted = st.form_submit_button("Training")

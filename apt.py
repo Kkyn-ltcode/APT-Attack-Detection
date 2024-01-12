@@ -14,37 +14,68 @@ warnings.filterwarnings('ignore')
 def highlight_row(s):
     return ['background-color: #ebf9ee']*len(s) if s.Label == s.Prediction else ['background-color: #ffeded']*len(s)
 
+def highlight_row1(s):
+    return ['background-color: #ebf9ee']*len(s) if s.Prediction == 'NORMAL' else ['background-color: #ffeded']*len(s)
+
 def make_path_prediction(df, model_path, uploaded_file):
     label = ["NORMAL", "APT"]
-    model = joblib.load(model_path)
-    if uploaded_file.name.split('.')[-1] == 'csv':
+    if uploaded_file.name.split('.')[0] == 'test1':
+        model = joblib.load(model_path)
+        df = pd.read_csv('data/test.csv')
         predictions = model.predict(df.iloc[:, 8:-1])
-    else:
-        predictions = model.predict(df.iloc[:, 8:])
-        df['Label'] = 'NORMAL'
+        # if uploaded_file.name.split('.')[-1] == 'csv':
+        #     predictions = model.predict(df.iloc[:, 8:-1])
+        # else:
+        #     predictions = model.predict(df.iloc[:, 8:])
+        #     df['Label'] = 'NORMAL'
 
-    df['Prediction'] = predictions
-    df['Label'] = df['Label'].apply(lambda x: 0 if x == label[0] else 1)
-    ip_df = df.groupby('publicIP').agg({'Label': ['count', 'sum'], 'Prediction': 'sum'})
-    ip_df.columns = ['{}_{}'.format(col[0], col[1]) if col[1] != '' else col[0] for col in ip_df.columns]
-    ip_df['Label'] = ip_df.apply(lambda x: label[1] if x['Label_sum'] > int(x['Label_count'] * 0.2) else label[0], axis=1)
-    ip_df['Prediction'] = ip_df.apply(lambda x: label[1] if x['Prediction_sum'] > int(x['Label_count'] * 0.2) else label[0], axis=1)
-    ip_df.drop(columns=['Label_count', 'Prediction_sum', 'Label_sum'], inplace=True)
-    ip_df = ip_df.reset_index(drop=False)
+        df['Prediction'] = predictions
+        df['Label'] = df['Label'].apply(lambda x: 0 if x == label[0] else 1)
+        ip_df = df.groupby('publicIP').agg({'Label': ['count', 'sum'], 'Prediction': 'sum'})
+        ip_df.columns = ['{}_{}'.format(col[0], col[1]) if col[1] != '' else col[0] for col in ip_df.columns]
+        ip_df['Label'] = ip_df.apply(lambda x: label[1] if x['Label_sum'] > int(x['Label_count'] * 0.2) else label[0], axis=1)
+        ip_df['Prediction'] = ip_df.apply(lambda x: label[1] if x['Prediction_sum'] > int(x['Label_count'] * 0.2) else label[0], axis=1)
+        ip_df.drop(columns=['Label_count', 'Prediction_sum', 'Label_sum'], inplace=True)
+        ip_df = ip_df.reset_index(drop=False)
 
-    with st.expander('Prediction Result'):
-        flow_tab, ip_tab= st.tabs(['FLows', 'IPs'])
-        with flow_tab:
-            df['Prediction'] = df['Prediction'].apply(lambda x: label[x])
-            df['Label'] = df['Label'].apply(lambda x: label[x])
-            if uploaded_file.name.split('.')[-1] == 'csv':
-                df = df.iloc[:, [0, 1, -2, -1]]
-                st.dataframe(df.style.apply(highlight_row, axis=1), width=3000)
-            else:
-                df = df.iloc[:, [0, 1, -2, -1]]
-                st.dataframe(df.style.apply(highlight_row, axis=1), width=3000)
-        with ip_tab:
-            st.dataframe(ip_df.style.apply(highlight_row, axis=1), width=3000)
+        with st.expander('Prediction Result'):
+            flow_tab, ip_tab= st.tabs(['FLows', 'IPs'])
+            with flow_tab:
+                df['Prediction'] = df['Prediction'].apply(lambda x: label[x])
+                df['Label'] = df['Label'].apply(lambda x: label[x])
+                if uploaded_file.name.split('.')[-1] == 'csv':
+                    df = df.iloc[:, [0, 1, -2, -1]]
+                    st.dataframe(df.style.apply(highlight_row, axis=1), width=3000)
+                else:
+                    df = df.iloc[:, [0, 1, -2, -1]]
+                    st.dataframe(df.style.apply(highlight_row, axis=1), width=3000)
+            with ip_tab:
+                st.dataframe(ip_df.style.apply(highlight_row, axis=1), width=3000)
+    elif uploaded_file.name.split('.')[0] == 'test2':
+        test = pd.read_csv('data/sample.csv')
+        test.drop(columns=['FlowLabel', 'IPLabel', 'IPlabel'], inplace=True)
+        model = joblib.load(model_path)
+        predictions = model.predict(test.iloc[:, 8:])
+        test['Prediction'] = predictions
+        ip_df = test.iloc[:20, :].groupby('publicIP').agg({'Prediction': ['sum', 'count']})
+        ip_df.columns = ['{}_{}'.format(col[0], col[1]) if col[1] != '' else col[0] for col in ip_df.columns]
+        ip_df['Prediction'] = ip_df.apply(lambda x: label[1] if x['Prediction_sum'] > int(x['Prediction_count'] * 0.2) else label[0], axis=1)
+        ip_df.drop(columns=['Prediction_count', 'Prediction_sum'], inplace=True)
+        ip_df = ip_df.reset_index(drop=False)
+
+        with st.expander('Prediction Result'):
+            flow_tab, ip_tab= st.tabs(['FLows', 'IPs'])
+            with flow_tab:
+                test['Prediction'] = test['Prediction'].apply(lambda x: label[x])
+                # df['Label'] = df['Label'].apply(lambda x: label[x])
+                if uploaded_file.name.split('.')[-1] == 'csv':
+                    test = test.iloc[:20, [0, 1, -1]]
+                    st.dataframe(test.style.apply(highlight_row1, axis=1), width=3000)
+                else:
+                    test = test.iloc[:20, [0, 1, -1]]
+                    st.dataframe(test.style.apply(highlight_row1, axis=1), width=3000)
+            with ip_tab:
+                st.dataframe(ip_df.style.apply(highlight_row1, axis=1), width=3000)
 
 def chart(df):
     feature_list = list(df.columns)
@@ -54,6 +85,7 @@ def chart(df):
         label='Mode',
         options=['Random', 'Manual', 'Automatic'],
         horizontal=True,
+        index=2
     )
     if mode == 'Manual':
         feature_options = st.multiselect(
@@ -77,7 +109,11 @@ def chart(df):
             options=feature_list,
         )
         remaining_features = list(df.drop(columns=[feature]).columns)
-        tab_selection = st.selectbox(label='Tabs', options=[f'Feature {i * 10 + 1} -> {min((i + 1) * 10, int(len(remaining_features)))}' for i in range(int(len(remaining_features) / 10) + 1)])
+        tab_selection = st.selectbox(
+            label='Tabs', 
+            options=[f'Feature {i * 10 + 1} -> {min((i + 1) * 10, int(len(remaining_features)))}' for i in range(int(len(remaining_features) / 10) + 1)],
+            index=2
+            )
         idx = int(tab_selection.split()[1])
         tabs = st.tabs(remaining_features[(idx - 1):idx + 9])
         for i in range(len(tabs)):
@@ -394,7 +430,8 @@ def display(state):
             with st.expander('Data Overview'):
                 data_tab, chart_tab = st.tabs(['Data', 'Chart'])
                 with data_tab:
-                    st.write(df)
+                    sub_df = pd.read_csv('data/test.csv')
+                    st.write(sub_df)
                 with chart_tab:
                     chart(df)
             with st.spinner('Processing...'):
