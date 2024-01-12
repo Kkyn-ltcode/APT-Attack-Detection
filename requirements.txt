@@ -4,3 +4,4 @@ plotly
 scapy==2.4.3
 cicflowmeter==0.1.6
 torch==2.0.1
+streamlit_option_menu
